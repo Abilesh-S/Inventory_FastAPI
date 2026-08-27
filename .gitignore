@@ -1,0 +1,31 @@
+# Virtual environment
+my_env/
+venv/
+env/
+*.venv
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment variables
+.env
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# Pytest
+.pytest_cache/
+
+# Alembic (if you add migrations later)
+# (keep alembic.ini and versions/, ignore nothing here unless generated files show up)
+
+# OS
+.DS_Store
