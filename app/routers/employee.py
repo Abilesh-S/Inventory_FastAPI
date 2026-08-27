@@ -1,4 +1,3 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
@@ -7,6 +6,7 @@ from app.models.transaction import Transaction, TransactionType
 from app.models.user import User, RoleEnum
 from app.schemas.transaction import TransactionCreate, TransactionOut
 from app.core.dependencies import require_role
+from app.services.audit_service import log_action
 
 router = APIRouter(prefix="/employee", tags=["Employee"])
 
@@ -31,6 +31,14 @@ def sell_stock(
         quantity=txn.quantity,
     )
     db.add(new_txn)
+
+    log_action(
+        db,
+        user_id=current_user.id,
+        action="STOCK_SOLD",
+        details=f"product_id={txn.product_id}, quantity={txn.quantity}, customer_id={txn.customer_id}",
+    )
+
     db.commit()
     db.refresh(new_txn)
     return new_txn

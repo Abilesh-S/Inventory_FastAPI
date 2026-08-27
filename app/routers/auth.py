@@ -6,6 +6,7 @@ from app.models.user import User, RoleEnum
 from app.schemas.auth import UserSignup, UserOut, Token
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.dependencies import require_role
+from app.services.audit_service import log_action
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -17,6 +18,7 @@ def create_user(
 ):
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(400, "Email already registered")
+
     new_user = User(
         username=user.username,
         email=user.email,
@@ -24,6 +26,15 @@ def create_user(
         role=user.role,
     )
     db.add(new_user)
+    db.flush()
+
+    log_action(
+        db,
+        user_id=current_user.id,
+        action="USER_CREATED",
+        details=f"new_user_id={new_user.id}, username={new_user.username}, role={new_user.role.value}",
+    )
+
     db.commit()
     db.refresh(new_user)
     return new_user

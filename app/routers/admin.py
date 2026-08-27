@@ -6,6 +6,7 @@ from app.models.transaction import Transaction, TransactionType
 from app.models.user import User, RoleEnum
 from app.schemas.product import ProductCreate, ProductOut, StockUpdate
 from app.core.dependencies import require_role
+from app.services.audit_service import log_action
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -19,6 +20,15 @@ def create_product(
         raise HTTPException(400, "SKU already exists")
     new_product = Product(**product.dict())
     db.add(new_product)
+    db.flush()  # get new_product.id before commit, for the audit details
+
+    log_action(
+        db,
+        user_id=current_user.id,
+        action="PRODUCT_CREATED",
+        details=f"product_id={new_product.id}, sku={new_product.sku}, name={new_product.name}",
+    )
+
     db.commit()
     db.refresh(new_product)
     return new_product
@@ -33,6 +43,7 @@ def add_stock(
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(404, "Product not found")
+
     product.quantity += stock.quantity
     db.add(Transaction(
         product_id=product.id,
@@ -40,6 +51,14 @@ def add_stock(
         transaction_type=TransactionType.STOCK_IN,
         quantity=stock.quantity,
     ))
+
+    log_action(
+        db,
+        user_id=current_user.id,
+        action="STOCK_ADDED",
+        details=f"product_id={product.id}, quantity={stock.quantity}, new_total={product.quantity}",
+    )
+
     db.commit()
     db.refresh(product)
     return product
