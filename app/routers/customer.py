@@ -1,23 +1,32 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.models.product import Product
-from app.models.transaction import Transaction, TransactionType
-from app.schemas.transaction import TransactionCreate, TransactionOut
+from app.models.customer import Customer
+from app.models.user import User, RoleEnum
+from app.schemas.customer import CustomerCreate, CustomerOut
+from app.core.dependencies import require_role
 
-router = APIRouter(prefix="/customer", tags=["Customer"])
+router = APIRouter(prefix="/customers", tags=["Customer"])
 
-@router.post("/buy", response_model=TransactionOut)
-def buy_stock(txn: TransactionCreate, db: Session = Depends(get_db)):
-    product = db.query(Product).filter(Product.id == txn.product_id).first()
-    if not product:
-        raise HTTPException(404, "Product not found")
-    if product.quantity < txn.quantity:
-        raise HTTPException(400, "Insufficient stock")
-    product.quantity -= txn.quantity
-    new_txn = Transaction(product_id=txn.product_id, user_id=txn.user_id,
-                          transaction_type=TransactionType.PURCHASE, quantity=txn.quantity)
-    db.add(new_txn)
+@router.post("/", response_model=CustomerOut)
+def create_customer(
+    customer: CustomerCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(RoleEnum.ADMIN, RoleEnum.EMPLOYEE)),
+):
+    new_customer = Customer(**customer.dict())
+    db.add(new_customer)
     db.commit()
-    db.refresh(new_txn)
-    return new_txn
+    db.refresh(new_customer)
+    return new_customer
+
+@router.get("/{customer_id}", response_model=CustomerOut)
+def get_customer(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(RoleEnum.ADMIN, RoleEnum.EMPLOYEE)),
+):
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(404, "Customer not found")
+    return customer
