@@ -1,12 +1,16 @@
-from typing import Optional
-from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
 from app.models.transaction import TransactionType
+
 
 class TransactionCreate(BaseModel):
     product_id: int
-    quantity: int
+    quantity: int = Field(gt=0)
     customer_id: Optional[int] = None
+
 
 class TransactionOut(BaseModel):
     id: int
@@ -16,5 +20,6 @@ class TransactionOut(BaseModel):
     transaction_type: TransactionType
     quantity: int
     timestamp: datetime
+
     class Config:
         from_attributes = True

@@ -1,5 +1,7 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.db.database import get_db
 from app.models.product import Product
 from app.models.transaction import Transaction, TransactionType
@@ -62,3 +64,40 @@ def add_stock(
     db.commit()
     db.refresh(product)
     return product
+
+@router.get("/products", response_model=List[ProductOut])
+def list_products(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(RoleEnum.ADMIN, RoleEnum.EMPLOYEE)),
+):
+    return db.query(Product).all()
+
+
+@router.delete("/products/{product_id}")
+def delete_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(RoleEnum.ADMIN)),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(404, "Product not found")
+
+    log_action(
+        db,
+        user_id=current_user.id,
+        action="PRODUCT_DELETED",
+        details=f"product_id={product.id}, sku={product.sku}, name={product.name}",
+    )
+
+    try:
+        db.delete(product)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            400,
+            "Cannot delete product — it already has transaction history. Consider marking it inactive instead.",
+        )
+
+    return {"detail": f"Product '{product.name}' deleted successfully"}

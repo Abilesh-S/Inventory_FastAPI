@@ -17,8 +17,16 @@ def create_user(
     current_user: User = Depends(require_role(RoleEnum.ADMIN)),
 ):
     if db.query(User).filter(User.email == user.email).first():
-        raise HTTPException(400, "Email already registered")
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered",
+        )
 
+    if db.query(User).filter(User.username == user.username).first():
+        raise HTTPException(
+            status_code=400,
+            detail="Username already registered",
+        )
     new_user = User(
         username=user.username,
         email=user.email,
