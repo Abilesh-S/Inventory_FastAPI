@@ -6,7 +6,7 @@ from app.db.database import get_db
 from app.models.product import Product
 from app.models.transaction import Transaction, TransactionType
 from app.models.user import User, RoleEnum
-from app.schemas.product import ProductCreate, ProductOut, StockUpdate
+from app.schemas.product import ProductCreate, ProductOut, StockUpdate , ProductBase
 from app.core.dependencies import require_role
 from app.services.audit_service import log_action
 from app.core.logger import logger

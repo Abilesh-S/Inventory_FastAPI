@@ -1,5 +1,6 @@
 import logging
 import sys
+import os
 
 logger = logging.getLogger("inventory_app")
 logger.setLevel(logging.INFO)
@@ -10,3 +11,9 @@ formatter = logging.Formatter(
 )
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+
+# File output (new)
+os.makedirs("logs", exist_ok=True)
+file_handler = logging.FileHandler("logs/app.log")
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
