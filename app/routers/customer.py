@@ -5,6 +5,7 @@ from app.models.customer import Customer
 from app.models.user import User, RoleEnum
 from app.schemas.customer import CustomerCreate, CustomerOut
 from app.core.dependencies import require_role
+from app.core.logger import logger
 
 router = APIRouter(prefix="/customers", tags=["Customer"])
 
@@ -14,11 +15,14 @@ def create_customer(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(RoleEnum.ADMIN, RoleEnum.EMPLOYEE)),
 ):
+    logger.info(f"create_customer called by user_id={current_user.id}, phone={customer.phone}")
     new_customer = Customer(**customer.dict())
     db.add(new_customer)
     db.commit()
     db.refresh(new_customer)
+    logger.info(f"create_customer success - customer_id={new_customer.id}")
     return new_customer
+
 
 @router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer(
@@ -26,7 +30,9 @@ def get_customer(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(RoleEnum.ADMIN, RoleEnum.EMPLOYEE)),
 ):
+    logger.info(f"get_customer called by user_id={current_user.id}, customer_id={customer_id}")
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
+        logger.warning(f"get_customer failed - customer_id={customer_id} not found")
         raise HTTPException(404, "Customer not found")
     return customer

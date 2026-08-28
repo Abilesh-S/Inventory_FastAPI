@@ -9,6 +9,7 @@ from app.models.user import User, RoleEnum
 from app.schemas.product import ProductCreate, ProductOut, StockUpdate
 from app.core.dependencies import require_role
 from app.services.audit_service import log_action
+from app.core.logger import logger
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -18,11 +19,15 @@ def create_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(RoleEnum.ADMIN)),
 ):
+    logger.info(f"create_product called by user_id={current_user.id}, sku={product.sku}")
+
     if db.query(Product).filter(Product.sku == product.sku).first():
+        logger.warning(f"create_product failed - duplicate sku={product.sku}")
         raise HTTPException(400, "SKU already exists")
+
     new_product = Product(**product.dict())
     db.add(new_product)
-    db.flush()  # get new_product.id before commit, for the audit details
+    db.flush()
 
     log_action(
         db,
@@ -33,7 +38,9 @@ def create_product(
 
     db.commit()
     db.refresh(new_product)
+    logger.info(f"create_product success - product_id={new_product.id}")
     return new_product
+
 
 @router.post("/products/{product_id}/add-stock", response_model=ProductOut)
 def add_stock(
@@ -42,8 +49,11 @@ def add_stock(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(RoleEnum.ADMIN)),
 ):
+    logger.info(f"add_stock called by user_id={current_user.id}, product_id={product_id}, quantity={stock.quantity}")
+
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
+        logger.warning(f"add_stock failed - product_id={product_id} not found")
         raise HTTPException(404, "Product not found")
 
     product.quantity += stock.quantity
@@ -63,13 +73,16 @@ def add_stock(
 
     db.commit()
     db.refresh(product)
+    logger.info(f"add_stock success - product_id={product.id}, new_total={product.quantity}")
     return product
+
 
 @router.get("/products", response_model=List[ProductOut])
 def list_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(RoleEnum.ADMIN, RoleEnum.EMPLOYEE)),
 ):
+    logger.info(f"list_products called by user_id={current_user.id}")
     return db.query(Product).all()
 
 
@@ -79,8 +92,11 @@ def delete_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(RoleEnum.ADMIN)),
 ):
+    logger.info(f"delete_product called by user_id={current_user.id}, product_id={product_id}")
+
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
+        logger.warning(f"delete_product failed - product_id={product_id} not found")
         raise HTTPException(404, "Product not found")
 
     log_action(
@@ -95,9 +111,30 @@ def delete_product(
         db.commit()
     except IntegrityError:
         db.rollback()
+        logger.error(f"delete_product failed - product_id={product_id} has transaction history")
         raise HTTPException(
             400,
             "Cannot delete product — it already has transaction history. Consider marking it inactive instead.",
         )
 
+    logger.info(f"delete_product success - product_id={product_id}")
     return {"detail": f"Product '{product.name}' deleted successfully"}
+
+@router.put("/products/{productid}", response_model=ProductOut)
+def update_product(
+    productid: int,
+    product: ProductBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(RoleEnum.ADMIN)),
+):
+    existProduct = db.query(Product).filter(Product.id == productid).first()
+    if not existProduct:
+        raise HTTPException(404, "Product not found")
+
+    existProduct.name = product.name
+    existProduct.sku = product.sku
+    existProduct.price = product.price
+
+    db.commit()
+    db.refresh(existProduct)
+    return existProduct

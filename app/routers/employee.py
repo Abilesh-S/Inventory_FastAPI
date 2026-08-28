@@ -7,6 +7,7 @@ from app.models.user import User, RoleEnum
 from app.schemas.transaction import TransactionCreate, TransactionOut
 from app.core.dependencies import require_role
 from app.services.audit_service import log_action
+from app.core.logger import logger
 
 router = APIRouter(prefix="/employee", tags=["Employee"])
 
@@ -16,10 +17,14 @@ def sell_stock(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(RoleEnum.EMPLOYEE, RoleEnum.ADMIN)),
 ):
+    logger.info(f"sell_stock called by user_id={current_user.id}, product_id={txn.product_id}, quantity={txn.quantity}")
+
     product = db.query(Product).filter(Product.id == txn.product_id).first()
     if not product:
+        logger.warning(f"sell_stock failed - product_id={txn.product_id} not found")
         raise HTTPException(404, "Product not found")
     if product.quantity < txn.quantity:
+        logger.warning(f"sell_stock failed - insufficient stock for product_id={txn.product_id}")
         raise HTTPException(400, "Insufficient stock")
 
     product.quantity -= txn.quantity
@@ -41,4 +46,5 @@ def sell_stock(
 
     db.commit()
     db.refresh(new_txn)
+    logger.info(f"sell_stock success - transaction_id={new_txn.id}")
     return new_txn
